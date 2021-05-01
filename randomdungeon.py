@@ -116,6 +116,7 @@ class Rectangle(object):
 def appStarted(app):
     createLevel(app)
     
+    #called in main.py
 def createLevel(app):
     app.showMap = False
     app.showCurrentRoom = True
@@ -142,6 +143,7 @@ def createLevel(app):
     app.currentRoom = app.entrance
     createCurrentRoom(app)
 
+#make randomly sized rectangular rooms
 def makeRooms(app):
     while len(app.rectangles) < app.rectangleNumber:
 
@@ -319,7 +321,7 @@ def createBacktrack(app):
                 app.graph[value].add(key)
     
 
-
+#determines a random location for portal to spawn
 def getRandomEdge(app, x0, y0, x1, y1):
     edge = random.randint(1,4)
     offset = 50
@@ -337,6 +339,7 @@ def getRandomEdge(app, x0, y0, x1, y1):
         cy = random.randint(y0, y1)
     return cx, cy
 
+#creates the current room
 def createCurrentRoom(app):
     currentRectangle = app.rectangles[app.currentRoom]
     (originalCenterX, originalCenterY) = currentRectangle.center
@@ -352,6 +355,7 @@ def createCurrentRoom(app):
     app.y1 = int(app.y0 + currentRectangle.height * 20)
     app.currentPortal = getRandomEdge(app, app.x0, app.y0, app.x1, app.y1)
     
+#switches "current" room
 def switchRoom(app, room):
     app.currentRoom = room
     app.paused = False
@@ -361,8 +365,7 @@ def switchRoom(app, room):
     createCurrentRoom(app)
     
 def keyPressed(app, event):
-    if (event.key == "r"):
-        appStarted(app)
+    pass
 
 def mousePressed(app, event):
     pass
@@ -386,7 +389,7 @@ def drawRooms(app, canvas):
                             text = str(roomIndex))
         roomIndex += 1
 
-#colors entrance green and exit red
+#colors entrance green and exit red in map
 def highlightStartAndEnd(app, canvas):
     (x0, y0, x1, y1, x2, y2, x3, y3) = getStartAndEnd(app)
     canvas.create_rectangle(x0, y0, x1, y1, fill = "green", outline = "green") 
@@ -407,6 +410,7 @@ def drawConnections(app, canvas):
             (x1, y1) = app.centers[index]
             canvas.create_line(x0, y0, x1, y1)
     
+#draws the portal, blue circle
 def drawPortal(app, canvas):
     r = 25
     (cx, cy) = app.currentPortal
@@ -414,7 +418,7 @@ def drawPortal(app, canvas):
     cy += app.scrollY
     canvas.create_oval(cx-r, cy-r, cx+r, cy+r, fill = "blue")
 
-    
+#draws currentroom, which is about 15 times the size than that in the map
 def drawCurrentRoom(app, canvas):
     r = 25
     (x0, y0, x1, y1) = (app.x0, app.y0, app.x1, app.y1)
@@ -427,7 +431,8 @@ def drawCurrentRoom(app, canvas):
     xc += app.scrollX
     yc += app.scrollY
     canvas.create_rectangle(x0, y0, x1, y1, fill = "white")
-    canvas.create_text(xc, yc, text = f'Room {app.currentRoom}')
+    canvas.create_text(xc, yc, text = f'Room {app.currentRoom}', 
+                            font="arial 30 bold")
 
 def redrawAll(app, canvas):
     canvas.create_rectangle(-app.width, -app.height, app.width * 10, app.height * 10, fill="grey")

@@ -26,7 +26,7 @@ def distance(x0, y0, x1, y1):
 ################################################################################
 # Menu Mode
 ################################################################################
-
+# app starts in this mode
 def menuMode_mousePressed(app, event):
     xBounds = (app.width / 2 - 50) < event.x < (app.width / 2 + 50)
     yBounds = (app.height / 2 - 20) < event.y < (app.height / 2 + 20)
@@ -52,14 +52,14 @@ def appStarted(app):
     app.mode = "menuMode"
     createLevel(app)
     app.time = time.time()
-    app.hitWindow = 30
+    app.hitWindow = 30 #player and enemy hitbox
     app.timerDelay = 20
     app.paused = False
     app.isChoosing = False
+    app.showChoice = True
     app.currentChoices = list(app.graph[app.currentRoom])
     app.gameOver = False
     app.playerLost = False
-
     loadPlayerStats(app)
     loadMonsterStats(app)
     app.projectiles = []
@@ -74,7 +74,7 @@ def loadPlayerStats(app):
     app.playerY = app.height // 2
     app.playerMoveSpeed = 10
     app.playerProjectileSpeed = 15
-    app.playerDexterity = 35
+    app.playerDexterity = 35 # related to fire rate
     app.playerHealth = 100
     app.playerCurrentHealth = 100
     app.playerDefense = 5
@@ -104,11 +104,13 @@ class Monster(object):
         self.defense = defense
         self.moveSpeed = moveSpeed
         self.attack = attack
+        #fire rate formula from https://www.realmeye.com/wiki/character-stats
         self.fireRate = 1.5 + 6.5*(dexterity / 50)
         self.attackPeriod = 1 / self.fireRate
         self.fireCooldown = time.time()
 
     def updatePos(self, scrollX, scrollY):
+        #update pos with scroll
         self.x = self.noScrollX + scrollX
         self.y = self.noScrollY + scrollY
         
@@ -155,8 +157,11 @@ class Projectile(object):
         self.targetX = self.targetNoScrollX + scrollX
         self.targetY = self.targetNoScrollY + scrollY
         #update directions as well
+
+    def destroy(self, app):
+        app.projectiles.remove(self)
                                                     
-#adds monsters to list
+#adds monsters to list, called every level
 def spawnMonsters(app):
     app.monsters = []
     monsterNumber = random.randint(4, 7)
@@ -180,7 +185,7 @@ def shootProjectile(app, x, y, source):
                                                     app.monsterProjectileSpeed)
     app.projectiles.append(currentProjectile)
 
-#checks if projectile hit a player or monster
+#checks if projectile hit a player, monster, or wall
 def checkProjCollision(app):
     for projectile in app.projectiles:
         if (projectile.source == "player"):
@@ -203,6 +208,21 @@ def checkProjCollision(app):
                 if projectile in app.projectiles:
                     app.projectiles.remove(projectile)
                 checkDeaths(app)
+    
+    #destroy when colliding with wall
+    for projectile in app.projectiles:
+        x0 = projectile.noScrollX
+        y0 = projectile.noScrollY
+        if (x0 < app.x0): 
+            projectile.destroy(app)
+        if (x0 > app.x1):
+            projectile.destroy(app)
+        if (y0 < app.y0):
+            projectile.destroy(app)
+        if (y0 > app.y1):
+            projectile.destroy(app)
+
+
 
 #called if player gets hit by projectile
 def playerTakeDamage(app, damage):
@@ -221,38 +241,42 @@ def checkDeaths(app):
         app.gameOver = True
         app.playerLost = True
 
+#checks if player is in last room
 def checkWin(app):
     if app.currentRoom == app.exit:
         app.gameOver = True
         app.playerLost = False
 
+#checks if player is touching a wall or a portal
 def checkCollision(app):
     x0 = app.playerNoScrollX
     y0 = app.playerNoScrollY
     (x1, y1) = app.currentPortal
     if (x0 < app.x0 + 25): 
-        x0 = app.x0 + 25
-    elif (x0 > app.x1 - 25):
-        x0 = app.x1 - 25
-    elif (y0 < app.y0 + 25):
-        y0 = app.x0 + 25
-    elif (y0 > app.y1 - 25):
-        y0 = app.y1 - 25
+        app.playerNoScrollX = app.x0 + 25
+        app.scrollX = app.playerX - app.playerNoScrollX
+    if (x0 > app.x1 - 25):
+        app.playerNoScrollX = app.x1 - 25
+        app.scrollX = app.playerX - app.playerNoScrollX
+    if (y0 < app.y0 + 25):
+        app.playerNoScrollY = app.y0 + 25
+        app.scrollY = app.playerY - app.playerNoScrollY
+    if (y0 > app.y1 - 25):
+        app.playerNoScrollY = app.y1 - 25
+        app.scrollY = app.playerY - app.playerNoScrollY
     portalDist = distance(x0, y0, x1, y1)
     if portalDist < 30:
         app.isChoosing = True
         app.paused = True
 
-    
-
-
-
+#scrolls all gameobjects other than player
 def scrollObjects(app):
     for monster in app.monsters:
         monster.updatePos(app.scrollX, app.scrollY)
     for projectile in app.projectiles:
         projectile.updatePos(app.scrollX, app.scrollY)
 
+#gets player choice of next room
 def getChoice(app, x, y):
     x0 = app.width/2 - 400
     y0 = (app.height / 2) - 30
@@ -273,11 +297,12 @@ def getChoice(app, x, y):
 # Game Mode
 ################################################################################
 def gameMode_keyPressed(app, event):
-    if (event.key == "m"):
+    if (event.key == "m"): #map
         if app.isChoosing == False:
             app.paused = not app.paused
         app.showMap = not app.showMap
         app.showCurrentRoom = not app.showCurrentRoom
+        app.showChoice = not app.showChoice
             
 
     if not app.paused or app.gameOver:
@@ -290,6 +315,7 @@ def gameMode_keyPressed(app, event):
         if (event.key == "d"):
             app.playerdCol = 1
         
+        #spawn a monster, for testing
         if (event.key == "p"):
             x = random.randint(100, 600)
             y = random.randint(100, 600)
@@ -312,7 +338,7 @@ def gameMode_mousePressed(app, event):
         app.playerTargetX = event.x
         app.playerTargetY= event.y
         app.playerFiring = True
-    if app.isChoosing and (event.x and event.y) != None:
+    if app.isChoosing and app.showChoice and (event.x and event.y) != None:
         choice = getChoice(app, event.x, event.y)
         if choice != None:
             switchRoom(app, choice)
@@ -325,7 +351,8 @@ def gameMode_mousePressed(app, event):
         if (((app.width / 2 - 50) < event.x < (app.width / 2 + 50)) and 
             (500 < event.y < 600)):
             appStarted(app)
-    
+
+#shooting also works with dragging    
 def gameMode_mouseDragged(app, event):
     if not app.paused or app.gameOver:
         app.playerTargetX = event.x
@@ -346,7 +373,8 @@ def gameMode_timerFired(app):
         app.playerNoScrollX = app.playerX - app.scrollX
         app.playerNoScrollY = app.playerY - app.scrollY
         scrollObjects(app)
-        #calculate player fire rate
+        #calculate player fire rate, formula from 
+        #https://www.realmeye.com/wiki/character-stats
         app.playerFireRate = 1.5 + 6.5*(app.playerDexterity / 50)
         fireCooldown = time.time() - app.time
         playerAttackPeriod = 1 / app.playerFireRate
@@ -364,6 +392,7 @@ def gameMode_timerFired(app):
                 dy = (app.playerNoScrollY - monster.noScrollY) / r
                 monster.attackPlayer(app, dx, dy)
 
+        #moves projectiles in their directions
         if (app.projectiles != []):
             for projectile in app.projectiles:
                 projectile.noScrollX += (projectile.dx * projectile.speed)
@@ -438,8 +467,9 @@ def gameMode_drawHealth(app, canvas):
                                 x - 41 + healthBarLength * (monster.currentHealth / monster.health), 
                                 y - 41 + healthBarThickness, fill="light green")
 
+#draw room choosing UI when stepping on portal
 def gameMode_drawChoice(app, canvas):
-    if app.isChoosing:
+    if app.isChoosing and app.showChoice:
         x0 = app.width/2 - 400
         y0 = (app.height / 2) - 30
         x1 = app.width/2 + 400
