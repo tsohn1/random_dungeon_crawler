@@ -1,12 +1,14 @@
 #tp0
 #name: Teo Sohn
 #andrewid: tsohn
+
 from cmu_112_graphics import *
 import time
 import math
 import random
 
 def almostEqual(d1, d2, epsilon= 1):
+    # from https://www.cs.cmu.edu/~112/notes/notes-data-and-operations.html#FloatingPointApprox
     # note: use math.isclose() outside 15-112 with Python version 3.5 or later
     return (abs(d2 - d1) < epsilon)
 
@@ -15,6 +17,19 @@ def distance(x0, y0, x1, y1):
 
 def appStarted(app):
     app.time = time.time()
+    app.hitWindow = 30
+    app.timerDelay = 20
+    loadPlayerStats(app)
+    loadmonsterStats(app)
+    app.projectiles = []
+    app.scrollX = 0
+    app.scrollY = 0
+    app.playerNoScrollX = app.playerX - app.scrollX
+    app.playerNoScrollY = app.playerY - app.scrollY
+    spawnMonsters(app)
+    
+
+def loadPlayerStats(app):
     app.playerX = app.width // 2
     app.playerY = app.height // 2
     app.playerMoveSpeed = 10
@@ -28,16 +43,13 @@ def appStarted(app):
     app.playerFiring = False
     app.playerTargetX = 0
     app.playerTargetY = 0
-    app.hitWindow = 30
-    app.timerDelay = 20
     app.playerdCol = 0
     app.playerdRow = 0
+
+def loadMonsterStats(app):
     app.monsters = []
     app.monsterProjectileSpeed = 10
-    app.projectiles = []
-    app.scrollX = 0
-    app.scrollY = 0
-    spawnMonsters(app)
+    app.monsterDefaultAttack = 10
 
 def keyPressed(app, event):
     if (event.key == "w"):
@@ -66,8 +78,9 @@ def keyReleased(app, event):
 
 class Monster(object):
     def __init__(self, app, x, y, health, defense, moveSpeed, attack, dexterity):
-        self.noScrollX = x
-        self.noScrollY = y
+        #initialize position and scroll so it could be scrolled with rest
+        self.noScrollX = x - app.scrollX
+        self.noScrollY = y - app.scrollX
         self.x = x
         self.y = y
         self.health = health
@@ -76,10 +89,13 @@ class Monster(object):
         self.moveSpeed = moveSpeed
         self.attack = attack
         self.fireRate = 1.5 + 6.5*(dexterity / 50)
+        self.attackPeriod = 1 / self.fireRate
+        self.fireCooldown = time.time()
 
     def updatePos(self, scrollX, scrollY):
         self.x = self.noScrollX + scrollX
         self.y = self.noScrollY + scrollY
+        
 
     def takeDamage(self, app, n):
         damageTaken = n-self.defense
@@ -89,8 +105,12 @@ class Monster(object):
             pass
     
     def attackPlayer(self, app, dx, dy):
-        self.x += self.moveSpeed * dx
-        self.y += self.moveSpeed * dy
+        #calculations done with absolute position
+        self.noScrollX += self.moveSpeed * dx
+        self.noScrollY += self.moveSpeed * dy
+        if (time.time() - self.fireCooldown) > self.attackPeriod:
+            shootProjectile(app, self.x, self.y, "monster")
+            self.fireCooldown = time.time()
 
 
     
@@ -102,27 +122,37 @@ class Projectile(object):
     def __init__(self, app, source, sourceX, sourceY, targetX, targetY, speed):
         self.source = source
         self.speed = speed
+        #initialize position and scroll so it could be scrolled with rest
+        self.noScrollX = sourceX - app.scrollX
+        self.noScrollY = sourceY - app.scrollY
         self.x = sourceX
         self.y = sourceY
-        self.initialScrollX = app.scrollX
-        self.initialScrollY = app.scrollY
+        self.targetNoScrollX = targetX - app.scrollX
+        self.targetNoScrollY = targetY - app.scrollY
+        self.targetX = targetX
+        self.targetY = targetY
         #x direction
-        self.dx = (targetX - self.x) / distance(self.x, self.y, 
-                                                    targetX, targetY)
+        r = distance(self.noScrollX, self.noScrollY, 
+                        self.targetNoScrollX, self.targetNoScrollY)
+        self.dx = (self.targetNoScrollX - self.noScrollX) / r
         #y direction
-        self.dy = (targetY - self.y) / distance(self.x, self.y, 
-                                                    targetX, targetY)   
+        self.dy = (self.targetNoScrollY - self.noScrollY) / r
     
     def updatePos(self, scrollX, scrollY):
-        self.x = self.x + (scrollX - self.initialScrollX)
-        self.y = self.y + (scrollY - self.initialScrollY)
+        self.x = self.noScrollX + scrollX
+        self.y = self.noScrollY + scrollY
+        self.targetX = self.targetNoScrollX + scrollX
+        self.targetY = self.targetNoScrollY + scrollY
+        #update directions as well
+
                                                     
 #adds monsters to list
 def spawnMonsters(app):
-    app.monsters.append(Monster(app, 500, 400, 100, 0, 3, 10, 3))
+    app.monsters.append(Monster(app, 500, 400, 100, 0, 5, 10, 3))
 
 #creates projectile for enemy or player
 def shootProjectile(app, x, y, source):
+    print(x, y)
     if (source == "player"):
         sourceX = app.playerX
         sourceY = app.playerY
@@ -131,8 +161,8 @@ def shootProjectile(app, x, y, source):
     elif (source == "monster"):
         sourceX = x
         sourceY = y
-        currentProjectile = Projectile(app, "monster", sourceX, sourceX, 
-                                            app.playerX, app.playerX,  
+        currentProjectile = Projectile(app, "monster", sourceX, sourceY, 
+                                            app.playerX, app.playerY,  
                                                     app.monsterProjectileSpeed)
     app.projectiles.append(currentProjectile)
 
@@ -146,20 +176,41 @@ def checkCollision(app):
                 yRange = monster.y - app.hitWindow < projectile.y < monster.y + app.hitWindow
                 if xRange and yRange:
                     monster.takeDamage(app, app.playerAttack)
-                    app.projectiles.remove(projectile)
+                    if projectile in app.projectiles:
+                        app.projectiles.remove(projectile)
                     checkDeaths(app)
+        elif (projectile.source == "monster"):
+            damage = app.monsterDefaultAttack
+            #hitbox of projectile
+            xRange = app.playerX - app.hitWindow < projectile.x < app.playerX + app.hitWindow
+            yRange = app.playerY - app.hitWindow < projectile.y < app.playerY + app.hitWindow
+            if xRange and yRange:
+                playerTakeDamage(app, damage)
+                if projectile in app.projectiles:
+                    app.projectiles.remove(projectile)
+                checkDeaths(app)
+
+#called if player gets hit by projectile
+def playerTakeDamage(app, damage):
+    damageTaken = damage - app.playerDefense
+    if damageTaken > 0:
+        app.playerCurrentHealth -= damageTaken
+    else:
+        pass
 
 #checks if player or any monsters are dead
 def checkDeaths(app):
     for monster in app.monsters:
         if (monster.currentHealth <= 0):
             app.monsters.remove(monster)
+    if app.playerHealth <= 0:
+        app.gameOver = True
 
 def scrollObjects(app):
     for monster in app.monsters:
         monster.updatePos(app.scrollX, app.scrollY)
-    # for projectile in app.projectiles:
-    #     projectile.updatePos(app.scrollX, app.scrollY)
+    for projectile in app.projectiles:
+        projectile.updatePos(app.scrollX, app.scrollY)
 
 
 def mousePressed(app, event):
@@ -182,6 +233,8 @@ def timerFired(app):
     #scrolls everything relative to player
     app.scrollX -= app.playerdCol * app.playerMoveSpeed
     app.scrollY -= app.playerdRow * app.playerMoveSpeed
+    app.playerNoScrollX = app.playerX - app.scrollX
+    app.playerNoScrollY = app.playerY - app.scrollY
     scrollObjects(app)
     #calculate player fire rate
     app.playerFireRate = 1.5 + 6.5*(app.playerDexterity / 50)
@@ -194,17 +247,18 @@ def timerFired(app):
 
     #move monsters when close to player
     for monster in app.monsters:
-        r = distance(monster.x, monster.y, app.playerX, app.playerY)
+        #do calculations in absolute coordinates
+        r = distance(monster.noScrollX, monster.noScrollY, app.playerNoScrollX, app.playerNoScrollY)
         if r < 600 and r != 0:
-            dx = (app.playerX - monster.x) / r
-            dy = (app.playerY - monster.y) / r
+            dx = (app.playerNoScrollX - monster.noScrollX) / r
+            dy = (app.playerNoScrollY - monster.noScrollY) / r
             monster.attackPlayer(app, dx, dy)
 
     if (app.projectiles != []):
         for projectile in app.projectiles:
-            projectile.x += (projectile.dx * projectile.speed)
-            projectile.y += (projectile.dy * projectile.speed)
-            if ((projectile.x < 0 or projectile.x > app.width) or 
+            projectile.noScrollX += (projectile.dx * projectile.speed)
+            projectile.noScrollY += (projectile.dy * projectile.speed)
+            if (( projectile.x < 0 or  projectile.x > app.width) or 
                     (projectile.y < 0 or projectile.y > app.height)):
                 app.projectiles.remove(projectile)
 
