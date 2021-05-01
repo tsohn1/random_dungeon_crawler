@@ -119,7 +119,7 @@ def appStarted(app):
 def createLevel(app):
     app.showMap = False
     app.showCurrentRoom = True
-    app.rectangleNumber = random.randint(6, 10)
+    app.rectangleNumber = random.randint(16, 20)
     app.rectangles = []
     app.centers = []
     app.currentPortal = (0, 0)
@@ -356,6 +356,8 @@ def switchRoom(app, room):
     app.currentRoom = room
     app.paused = False
     app.isChoosing = False
+    app.showMap = False
+    app.showCurrentRoom = True
     createCurrentRoom(app)
     
 def keyPressed(app, event):

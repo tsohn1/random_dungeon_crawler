@@ -274,9 +274,11 @@ def getChoice(app, x, y):
 ################################################################################
 def gameMode_keyPressed(app, event):
     if (event.key == "m"):
-            app.showMap = not app.showMap
-            app.showCurrentRoom = not app.showCurrentRoom
+        if app.isChoosing == False:
             app.paused = not app.paused
+        app.showMap = not app.showMap
+        app.showCurrentRoom = not app.showCurrentRoom
+            
 
     if not app.paused or app.gameOver:
         if (event.key == "w"):
@@ -296,10 +298,6 @@ def gameMode_keyPressed(app, event):
 
 def gameMode_keyReleased(app, event):
     if not app.paused or app.gameOver:
-        if (event.key == "m"):
-            app.showMap = not app.showMap
-            app.showCurrentRoom = not app.showCurrentRoom
-            createCurrentRoom(app)
         if (event.key == "w"):
             app.playerdRow = 0
         if (event.key == "a"):
@@ -321,6 +319,8 @@ def gameMode_mousePressed(app, event):
             app.currentChoices = list(app.graph[app.currentRoom])
             checkWin(app)
             spawnMonsters(app)
+            app.playerdRow = 0
+            app.playerdCol = 0
     if app.gameOver:
         if (((app.width / 2 - 50) < event.x < (app.width / 2 + 50)) and 
             (500 < event.y < 600)):
@@ -383,18 +383,20 @@ def gameMode_timerFired(app):
 
 
 def gameMode_drawPlayer(app, canvas):
-    r = 25
-    cx = app.playerX
-    cy = app.playerY
-    canvas.create_oval(cx+r, cy+r, cx-r, cy-r, fill="black")
-    canvas.create_text(cx, cy - 2*r, text="Player")
+    if not app.paused:
+        r = 25
+        cx = app.playerX
+        cy = app.playerY
+        canvas.create_oval(cx+r, cy+r, cx-r, cy-r, fill="black")
+        canvas.create_text(cx, cy - 2*r, text="Player")
     
 def gameMode_drawProjectiles(app, canvas):
-    r = 5
-    for projectile in app.projectiles:
-        cx = projectile.x
-        cy = projectile.y
-        canvas.create_oval(cx+r, cy+r, cx-r, cy-r, fill="red")
+    if not app.paused:
+        r = 5
+        for projectile in app.projectiles:
+            cx = projectile.x
+            cy = projectile.y
+            canvas.create_oval(cx+r, cy+r, cx-r, cy-r, fill="red")
 
 def gameMode_drawLevel(app, canvas):
     canvas.create_rectangle(-app.width, -app.height, app.width * 10, app.height * 10, fill="grey")
@@ -408,31 +410,33 @@ def gameMode_drawLevel(app, canvas):
         drawPortal(app, canvas)
 
 def gameMode_drawMonsters(app, canvas):
-    r = 25
-    for monster in app.monsters:
-        cx = monster.x
-        cy = monster.y
-        canvas.create_oval(cx-r, cy-r, cx+r, cy+r, fill="red")
+    if not app.paused:
+        r = 25
+        for monster in app.monsters:
+            cx = monster.x
+            cy = monster.y
+            canvas.create_oval(cx-r, cy-r, cx+r, cy+r, fill="red")
         
 def gameMode_drawHealth(app, canvas):
-    healthBarLength = 80
-    healthBarThickness = 10
-    canvas.create_rectangle(app.playerX - 40, app.playerY - 40, 
-                            app.playerX - 40 + healthBarLength, 
-                            app.playerY - 40 + healthBarThickness)
-    canvas.create_rectangle(app.playerX - 39, app.playerY - 39, 
-                            app.playerX - 41 + healthBarLength * (app.playerCurrentHealth / app.playerHealth), 
-                            app.playerY - 41 + healthBarThickness, fill="light green")
+    if not app.paused:
+        healthBarLength = 80
+        healthBarThickness = 10
+        canvas.create_rectangle(app.playerX - 40, app.playerY - 40, 
+                                app.playerX - 40 + healthBarLength, 
+                                app.playerY - 40 + healthBarThickness)
+        canvas.create_rectangle(app.playerX - 39, app.playerY - 39, 
+                                app.playerX - 41 + healthBarLength * (app.playerCurrentHealth / app.playerHealth), 
+                                app.playerY - 41 + healthBarThickness, fill="light green")
 
-    for monster in app.monsters:
-        x = monster.x
-        y = monster.y
-        canvas.create_rectangle(x - 40, y- 40, 
-                            x - 40 + healthBarLength, 
-                            y - 40 + healthBarThickness)
-        canvas.create_rectangle(x - 39, y - 39, 
-                            x - 41 + healthBarLength * (monster.currentHealth / monster.health), 
-                            y - 41 + healthBarThickness, fill="light green")
+        for monster in app.monsters:
+            x = monster.x
+            y = monster.y
+            canvas.create_rectangle(x - 40, y- 40, 
+                                x - 40 + healthBarLength, 
+                                y - 40 + healthBarThickness)
+            canvas.create_rectangle(x - 39, y - 39, 
+                                x - 41 + healthBarLength * (monster.currentHealth / monster.health), 
+                                y - 41 + healthBarThickness, fill="light green")
 
 def gameMode_drawChoice(app, canvas):
     if app.isChoosing:
