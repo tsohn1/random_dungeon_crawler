@@ -1,4 +1,3 @@
-#tp0
 #name: Teo Sohn
 #andrewid: tsohn
 
@@ -6,6 +5,10 @@ from cmu_112_graphics import *
 import time
 import math
 import random
+
+################################################################################
+# helper functions
+################################################################################
 
 def almostEqual(d1, d2, epsilon= 1):
     # from https://www.cs.cmu.edu/~112/notes/notes-data-and-operations.html#FloatingPointApprox
@@ -15,19 +18,23 @@ def almostEqual(d1, d2, epsilon= 1):
 def distance(x0, y0, x1, y1):
     return math.sqrt((y1-y0)**2 + (x1-x0)**2)
 
+################################################################################
+# Actual Functions
+################################################################################
+
 def appStarted(app):
     app.time = time.time()
     app.hitWindow = 30
     app.timerDelay = 20
     loadPlayerStats(app)
-    loadmonsterStats(app)
+    loadMonsterStats(app)
     app.projectiles = []
     app.scrollX = 0
     app.scrollY = 0
     app.playerNoScrollX = app.playerX - app.scrollX
     app.playerNoScrollY = app.playerY - app.scrollY
     spawnMonsters(app)
-    
+
 
 def loadPlayerStats(app):
     app.playerX = app.width // 2
@@ -152,7 +159,6 @@ def spawnMonsters(app):
 
 #creates projectile for enemy or player
 def shootProjectile(app, x, y, source):
-    print(x, y)
     if (source == "player"):
         sourceX = app.playerX
         sourceY = app.playerY
@@ -266,7 +272,9 @@ def timerFired(app):
     checkCollision(app)
     
 
-    
+################################################################################
+# Draw Functions
+################################################################################   
 
 
 def drawPlayer(app, canvas):

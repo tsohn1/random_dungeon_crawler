@@ -1,3 +1,6 @@
+#name: Teo Sohn
+#andrewid: tsohn
+
 import random
 from cmu_112_graphics import *
 import time
@@ -13,9 +16,11 @@ import math
 #construct a graph such that there is a path from beginning to end
 
 ################################################################################
-############################# helper functions #################################
+# helper functions
+################################################################################
 
 def almostEqual(d1, d2, epsilon= 20):
+    # from https://www.cs.cmu.edu/~112/notes/notes-data-and-operations.html#FloatingPointApprox
     # note: use math.isclose() outside 15-112 with Python version 3.5 or later
     return (abs(d2 - d1) < epsilon)
 
@@ -90,7 +95,10 @@ def rectanglesTouch(x1, y1, w1, h1, x2, y2, w2, h2):
 def distance(x0, y0, x1, y1):
     return math.sqrt((y1-y0)**2+(x1-x0)**2)
 
-##################################actual functions##############################
+################################################################################
+# Actual Functions
+################################################################################
+
 
 #stores room info
 class Rectangle(object):
@@ -106,8 +114,9 @@ class Rectangle(object):
 
 
 def appStarted(app):
-    app.showGraph = True
-    app.showCorridors = True
+    app.showGraph = False
+    app.showCorridors = False
+    app.showRoomNumber = False
     app.rectangleNumber = random.randint(24, 26)
     app.rectangles = []
     app.centers = []
@@ -115,7 +124,7 @@ def appStarted(app):
     app.visited = set()
     app.entrance = 0
     app.exit = 0
-    app.corridors = []
+    app.corridorOutline = []
     makeRooms(app)
     getStartAndEnd(app)
     getCenters(app)
@@ -281,16 +290,17 @@ def createBranches(app):
         i += 1
 
 def createCorridors(app):
-    app.corridors = []
+    app.corridorOutline = []
     linesDrawn = set()
     for room in app.graph:
         connections = list(app.graph[room])
         for destination in connections:
             if destination not in linesDrawn:
                 lineCoords = getCorridorCoords(app, room, destination)
-                app.corridors.append(lineCoords)
+                app.corridorOutline.append(lineCoords)
 
         linesDrawn.add(room)
+    
         
 
 def getCorridorCoords(app, room, destination):
@@ -407,6 +417,8 @@ def keyPressed(app, event):
         app.showGraph = not app.showGraph
     if (event.key == "c"):
         app.showCorridors = not app.showCorridors
+    if (event.key == "n"):
+        app.showRoomNumber = not app.showRoomNumber
 
 #each mousepress restarts app
 def mousePressed(app, event):
@@ -415,9 +427,9 @@ def mousePressed(app, event):
 def timerFired(app):
     pass
 
-###############################################################################
-#######Draw Functions#######################
-
+################################################################################
+# Draw Functions
+################################################################################
 #draws the room from the list of rectangles
 def drawRoom(app, canvas):
     roomIndex = 0
@@ -427,7 +439,8 @@ def drawRoom(app, canvas):
         x1 = x0 + rectangle.width
         y1 = y0 + rectangle.height
         canvas.create_rectangle(x0, y0, x1, y1)
-        canvas.create_text(x0 + rectangle.width/2,  y0 + rectangle.height/2, 
+        if app.showRoomNumber == True:
+            canvas.create_text(x0 + rectangle.width/2,  y0 + rectangle.height/2, 
                             text = str(roomIndex))
         roomIndex += 1
 
@@ -451,7 +464,7 @@ def drawConnections(app, canvas):
             canvas.create_line(x0, y0, x1, y1)
     
 def drawCorridors(app, canvas):
-    for line in app.corridors:
+    for line in app.corridorOutline:
         if len(line) == 4:
             (x0, y0, x1, y1) = line
             canvas.create_line(x0, y0, x1, y1)
