@@ -116,20 +116,18 @@ class Rectangle(object):
         self.connectedPortals = set()
         self.visited = set()
     
-    def addPortal(self, cx, cy):
+    def addPortal(self, cx, cy, start, end):
         self.portals += 1
-        self.portalList.append((cx, cy))
+        self.portalList.append((cx, cy, start, end))
 
-    def checkConnections(self):
-        for portal in self.portalList:
-            if portal not in self.connectedPortals:
-                return False
-        return True
 
 def appStarted(app):
     app.showGraph = False
-    app.showRoomNumber = False
-    app.showPortalNetwork = False
+    app.showRoomNumber = True
+    app.showPortalNetwork = True
+    app.showRooms = True
+    app.showPortals = True
+    app.showCurrentRoom = False
     app.rectangleNumber = random.randint(24, 26)
     app.rectangles = []
     app.centers = []
@@ -141,6 +139,7 @@ def appStarted(app):
     app.exit = 0
     app.scrollX = 0
     app.scrollY = 0
+    (app.x0, app.y0, app.x1, app.y1) = (0, 0, 0, 0)
     makeRooms(app)
     getStartAndEnd(app)
     getCenters(app)
@@ -152,6 +151,9 @@ def appStarted(app):
     createBacktrack(app)
     createPortals(app)
     createPortalNetwork(app)
+    app.currentRoom = app.entrance
+    createCurrentRoom(app)
+    print(app.graph)
 
 def makeRooms(app):
     while len(app.rectangles) < app.rectangleNumber:
@@ -257,7 +259,7 @@ def circlesDoNotIntersect(app, cx, cy):
     x0 = cx
     y0 = cy
     for circle in app.portals:
-        (x1, y1) = circle
+        (x1, y1) = circle[0], circle[1]
         if distance(x0, y0, x1, y1) < 30:
             return False
     return True
@@ -350,17 +352,20 @@ def createPortals(app):
         rectangle.connectedPortals = set()
         rectangle.visited = set()
 
+    #loop through all rooms
     for key in app.graph:
         portalsNeeded = len(app.graph[key])
         currentRectangle = app.rectangles[key]
+        #loop until current object has all the portals it needs
         while currentRectangle.portals < portalsNeeded:
-            (cx, cy) = getRandomEdge(app, currentRectangle)
-            
-            if circlesDoNotIntersect(app, cx, cy):
-                app.portals.append((cx, cy))
-                currentRectangle.addPortal(cx, cy)
-            else:
-                continue
+            #loop through destinations
+            for value in app.graph[key]:
+                (cx, cy) = getRandomEdge(app, currentRectangle)
+                #make sure that portals are not so close to each other
+                if circlesDoNotIntersect(app, cx, cy):
+                    #add it to the list of all portals
+                    app.portals.append((cx, cy, key, value))
+                    currentRectangle.addPortal(cx, cy, key, value)
 
     
 def getRandomEdge(app, currentRectangle):
@@ -382,6 +387,7 @@ def getRandomEdge(app, currentRectangle):
 def createPortalNetwork(app):
     app.portalNetwork = {}
 
+
     for i in range(len(app.rectangles)):
         currentRectangle = app.rectangles[i]
         targets = app.graph[i]
@@ -402,6 +408,26 @@ def createPortalNetwork(app):
 
 
 
+def createCurrentRoom(app):
+    currentRectangle = app.rectangles[app.currentRoom]
+    (originalCenterX, originalCenterY) = currentRectangle.center
+    app.currentCenterX = app.width / 2
+    app.currentCenterY = app.height / 2
+    app.displaceX = app.currentCenterX - originalCenterX
+    app.displaceY = app.currentCenterY - originalCenterY
+    app.x0 = app.currentCenterX - (currentRectangle.x * 5)
+    app.x1 = app.x0 + currentRectangle.width * 10
+    app.y0 = app.currentCenterY - (currentRectangle.y * 5)
+    app.y1 = app.y0 + currentRectangle.height * 10
+    app.currentRoomPortals = []
+    for portal in currentRectangle.portalList:
+        (portalX, portalY) = portal[0], portal[1]
+        portalX += app.displaceX
+        portalY += app.displaceY
+        app.currentRoomPortals.append((portalX, portalY, portal[2], portal[3]))
+    
+
+
 
 
 
@@ -419,6 +445,12 @@ def keyPressed(app, event):
         app.showRoomNumber = not app.showRoomNumber
     if (event.key == "p"):
         app.showPortalNetwork = not app.showPortalNetwork
+    if (event.key == "q"):
+        app.showRooms = not app.showRooms
+    if (event.key == "e"):
+        app.showPortals = not app.showPortals
+    if (event.key == "t"):
+        app.showCurrentRoom = not app.showCurrentRoom
     if (event.key == "w"):
         app.scrollY += 10
     if (event.key == "s"):
@@ -440,7 +472,7 @@ def timerFired(app):
 # Draw Functions
 ################################################################################
 #draws the room from the list of rectangles
-def drawRoom(app, canvas):
+def drawRooms(app, canvas):
     roomIndex = 0
     for rectangle in app.rectangles:
         x0 = rectangle.x 
@@ -498,26 +530,49 @@ def drawConnections(app, canvas):
 def drawPortals(app, canvas):
     r = 5
     for portal in app.portals:
-        (cx, cy) = portal
+        (cx, cy) = (portal[0], portal[1])
         canvas.create_oval(cx-r, cy-r, cx+r, cy+r, fill="blue")    
 
 def drawPortalConnections(app, canvas):
     for key in app.portalNetwork:
-        (x0, y0) = key
-        (x1, y1) = app.portalNetwork[key]
+        (x0, y0) = (key[0], key[1])
+        (x1, y1) = (app.portalNetwork[key][0], app.portalNetwork[key][1])
         canvas.create_line(x0, y0, x1, y1)
+    
+def drawCurrentRoom(app, canvas):
+    r = 25
+    (x0, y0, x1, y1) = (app.x0, app.y0, app.x1, app.y1)
+    x0 += app.scrollX
+    y0 += app.scrollY
+    x1 += app.scrollX
+    y1 += app.scrollY
+    xc = app.currentCenterX
+    yc = app.currentCenterY
+    xc += app.scrollX
+    yc += app.scrollY
+    canvas.create_rectangle(x0, y0, x1, y1, fill = "white")
+    canvas.create_text(xc, yc, text = f'Room {app.currentRoom}')
+    for portal in app.currentRoomPortals:
+        (cx, cy) = (portal[0], portal[1])
+        cx += app.scrollX
+        cy += app.scrollY
+        canvas.create_oval(cx-r, cy-r, cx+r, cy+r, fill = "blue")
+        canvas.create_text(cx, cy, text = f'to room {portal[2]}')
 
 def redrawAll(app, canvas):
     canvas.create_rectangle(-app.width, -app.height, app.width * 10, app.height * 10, fill="grey")
-    
-    drawRoom(app, canvas)
+    if app.showRooms:
+        drawRooms(app, canvas)
     
     if app.showGraph:
         drawConnections(app, canvas)
     highlightStartAndEnd(app, canvas)
-    drawPortals(app, canvas)
+    if app.showPortals:
+        drawPortals(app, canvas)
     if app.showPortalNetwork:    
         drawPortalConnections(app, canvas)
+    if app.showCurrentRoom:
+        drawCurrentRoom(app, canvas)
     
     
 
