@@ -29,17 +29,93 @@ def distance(x0, y0, x1, y1):
 # app starts in this mode
 def menuMode_mousePressed(app, event):
     xBounds = (app.width / 2 - 50) < event.x < (app.width / 2 + 50)
-    yBounds = (app.height / 2 - 20) < event.y < (app.height / 2 + 20)
-    if (xBounds and yBounds):
+    gameStartYBounds = (app.height / 2 - 20) < event.y < (app.height / 2 + 20)
+    optionsYBounds = (app.height / 2 + 40) < event.y < (app.height / 2 + 80)
+
+    #Play
+    if (xBounds and gameStartYBounds):
         app.mode = 'gameMode'
+        startGame(app)
+
+    #Options
+    if (xBounds and optionsYBounds):
+        app.mode = 'optionsMode'
+
+    
 
 def menuMode_redrawAll(app, canvas):
     canvas.create_text(app.width / 2, 200, text = "Infinite Dungeon Crawler",
                                 font = "Arial 30 bold")
-
+    #Play
     canvas.create_rectangle(app.width / 2 - 50, app.height / 2 - 20, 
                             app.width / 2 + 50, app.height / 2 + 20)
     canvas.create_text(app.width / 2, app.height / 2, text="Play")
+    #Options
+    canvas.create_rectangle(app.width / 2 - 50, app.height / 2 + 40, 
+                            app.width / 2 + 50, app.height / 2 + 80 )
+    canvas.create_text(app.width / 2, app.height / 2 + 60, text="Options")
+
+################################################################################
+# Options Mode
+################################################################################
+
+def optionsMode_mousePressed(app, event):
+    backXBounds = 0 < event.x < 80
+    backYBounds = 0 < event.y < 40
+
+    diffXBounds = app.width / 2 - 100 < event.x < app.width / 2 + 100
+    easyY = 250 < event.y < 300
+    mediumY = 325 < event.y < 375
+    hardY = 400 < event.y < 450
+
+    if (backXBounds and backYBounds):
+        app.mode = 'menuMode'
+
+    if (diffXBounds and easyY):
+        app.difficulty = 0
+    if (diffXBounds and mediumY):
+        app.difficulty = 1
+    if (diffXBounds and hardY):
+        app.difficulty = 2
+
+def optionsMode_redrawAll(app, canvas):
+
+    easyColor = "white"
+    mediumColor = "white"
+    hardColor = "white"
+
+    if app.difficulty == 0:
+        easyColor = "light green"
+    elif app.difficulty == 1:
+        mediumColor = "gold"
+    elif app.difficulty == 2:
+        hardColor = "tomato"
+
+
+    canvas.create_text(app.width / 2, 100, text = "Options",
+                                font = "Arial 30 bold")
+    #back button
+    canvas.create_rectangle(0, 0, 80, 40)
+    canvas.create_text(40, 20, text="Back")
+    canvas.create_text(app.width / 2, 200, text = "Choose Difficulty", 
+                        font = "Arial 20 bold")
+    canvas.create_rectangle(app.width / 2 - 100, 250,
+                        app.width / 2 + 100, 300, fill = easyColor)
+    canvas.create_text(app.width / 2, 275, text = "Easy", 
+                        font = "Arial 15 bold")
+
+    canvas.create_rectangle(app.width / 2 - 100, 325,
+                        app.width / 2 + 100, 375, fill = mediumColor)
+    canvas.create_text(app.width / 2, 350, text = "Medium", 
+                        font = "Arial 15 bold")
+
+    canvas.create_rectangle(app.width / 2 - 100, 400,
+                        app.width / 2 + 100, 450, fill = hardColor)
+    canvas.create_text(app.width / 2, 425, text = "Hard", 
+                        font = "Arial 15 bold")
+
+
+
 
 ################################################################################
 # Main App
@@ -50,16 +126,26 @@ def menuMode_redrawAll(app, canvas):
 
 def appStarted(app):
     app.mode = "menuMode"
+    app.difficulty = 0
+    startGame(app)
+
+
+def startGame(app):
     createLevel(app)
     app.time = time.time()
+    app.skillTime = time.time()
     app.hitWindow = 30 #player and enemy hitbox
     app.timerDelay = 20
+    app.score = 0
     app.paused = False
     app.isChoosing = False
+    app.pressedEsc = False
     app.showChoice = True
     app.currentChoices = list(app.graph[app.currentRoom])
     app.gameOver = False
     app.playerLost = False
+    app.playerCanUseSkill = True
+    app.playerUsingSkill = False
     loadPlayerStats(app)
     loadMonsterStats(app)
     app.projectiles = []
@@ -68,6 +154,7 @@ def appStarted(app):
     app.playerNoScrollX = app.playerX - app.scrollX
     app.playerNoScrollY = app.playerY - app.scrollY
     spawnMonsters(app)
+    app.playerVisited = {app.entrance}
 
 def loadPlayerStats(app):
     app.playerX = app.width // 2
@@ -75,10 +162,10 @@ def loadPlayerStats(app):
     app.playerMoveSpeed = 10
     app.playerProjectileSpeed = 15
     app.playerDexterity = 35 # related to fire rate
-    app.playerHealth = 100
-    app.playerCurrentHealth = 100
+    app.playerHealth = 100 - (app.difficulty * 15)
+    app.playerCurrentHealth = 100 - (app.difficulty * 15)
     app.playerDefense = 5
-    app.playerAttack = 10
+    app.playerAttack = 20
     app.playerFireRate = 0
     app.playerFiring = False
     app.playerTargetX = 0
@@ -88,8 +175,8 @@ def loadPlayerStats(app):
 
 def loadMonsterStats(app):
     app.monsters = []
-    app.monsterProjectileSpeed = 10
-    app.monsterDefaultAttack = 10
+    app.monsterProjectileSpeed = 10 + (2 * app.difficulty)
+    app.monsterDefaultAttack = 8 + app.difficulty
 
 
 class Monster(object):
@@ -159,7 +246,8 @@ class Projectile(object):
         #update directions as well
 
     def destroy(self, app):
-        app.projectiles.remove(self)
+        if self in app.projectiles:
+            app.projectiles.remove(self)
                                                     
 #adds monsters to list, called every level
 def spawnMonsters(app):
@@ -168,7 +256,12 @@ def spawnMonsters(app):
     for i in range(monsterNumber):
         xPos = random.randint(app.x0, app.x1)
         yPos = random.randint(app.y0, app.y1)
-        app.monsters.append(Monster(app, xPos, yPos, 100, 0, 5, 10, 3))
+        monsterHealth = 100 + (50 * app.difficulty)
+        monsterDefense = 2 * app.difficulty
+        monsterMovespeed = 5 + app.difficulty
+        monsterAttack = app.monsterDefaultAttack
+        monsterDexterity = 6 + (app.difficulty * 5)
+        app.monsters.append(Monster(app, xPos, yPos, monsterHealth, monsterDefense, monsterMovespeed, monsterAttack, monsterDexterity))
 
 #creates projectile for enemy or player
 def shootProjectile(app, x, y, source):
@@ -221,7 +314,6 @@ def checkProjCollision(app):
             projectile.destroy(app)
         if (y0 > app.y1):
             projectile.destroy(app)
-
 
 
 #called if player gets hit by projectile
@@ -314,6 +406,12 @@ def gameMode_keyPressed(app, event):
             app.playerdRow = 1
         if (event.key == "d"):
             app.playerdCol = 1
+
+        #use skill
+        if (event.key == "Space" and app.playerCanUseSkill):
+            app.playerUsingSkill = True
+            app.playerCanUseSkill = False
+            app.skillDuration = time.time()
         
         #spawn a monster, for testing
         if (event.key == "p"):
@@ -321,6 +419,19 @@ def gameMode_keyPressed(app, event):
             y = random.randint(100, 600)
 
             app.monsters.append(Monster(app, x, y, 100, 0, 3, 10, 3))
+
+        #teleport to a room before the exit, for testing
+        if (event.key == "l"):
+            nearExitRoom = list(app.graph[app.exit])[0]
+            switchRoom(app, nearExitRoom)
+            app.currentChoices = list(app.graph[app.currentRoom])
+            checkWin(app)
+            spawnMonsters(app)
+            app.playerdRow = 0
+            app.playerdCol = 0
+        if (event.key == "Escape"):
+            app.paused = True
+            app.pressedEsc = True
 
 def gameMode_keyReleased(app, event):
     if not app.paused or app.gameOver:
@@ -332,6 +443,7 @@ def gameMode_keyReleased(app, event):
             app.playerdRow = 0
         if (event.key == "d"):
             app.playerdCol = 0
+    
 
 def gameMode_mousePressed(app, event):
     if not app.paused or app.gameOver:
@@ -347,6 +459,20 @@ def gameMode_mousePressed(app, event):
             spawnMonsters(app)
             app.playerdRow = 0
             app.playerdCol = 0
+
+    if app.paused and app.pressedEsc:
+        continueX = app.width / 2 - 50 < event.x < app.width / 2 + 50
+        continueY = 300 < event.y < 350
+        menuX = app.width / 2 - 50 < event.x < app.width / 2 + 50
+        menuY = 400 < event.y < 450
+
+        if (continueX and continueY):
+            app.paused = False
+            app.pressedEsc = False
+        
+        if (menuX and menuY):
+            appStarted(app)
+
     if app.gameOver:
         if (((app.width / 2 - 50) < event.x < (app.width / 2 + 50)) and 
             (500 < event.y < 600)):
@@ -382,6 +508,36 @@ def gameMode_timerFired(app):
             shootProjectile(app, app.playerTargetX, app.playerTargetY, "player")
             app.time = time.time()
 
+        skillCooldown = time.time() - app.skillTime
+        #checks for player skill
+        if (skillCooldown > 10):
+            app.playerCanUseSkill = True
+        
+        
+        if app.playerUsingSkill:
+            
+            app.playerMoveSpeed = 15
+            app.playerProjectileSpeed = 20
+            app.playerDexterity = 45 # related to fire rate
+            app.playerDefense = 10
+            app.playerAttack = 30
+
+            if (time.time() - app.skillDuration > 3):
+                app.skillDuration = time.time()
+                app.playerMoveSpeed = 10
+                app.playerProjectileSpeed = 15
+                app.playerDexterity = 35 # related to fire rate
+                app.playerDefense = 5
+                app.playerAttack = 20
+                app.playerUsingSkill = False
+                
+
+
+
+
+
+
+
 
         #move monsters when close to player
         for monster in app.monsters:
@@ -402,12 +558,15 @@ def gameMode_timerFired(app):
                     app.projectiles.remove(projectile)
 
         
+
+        
         checkProjCollision(app)
         checkCollision(app)
+
     
 
 ################################################################################
-# Draw Functions
+# Draw Functions (gameMode)
 ################################################################################   
 
 
@@ -416,7 +575,15 @@ def gameMode_drawPlayer(app, canvas):
         r = 25
         cx = app.playerX
         cy = app.playerY
-        canvas.create_oval(cx+r, cy+r, cx-r, cy-r, fill="black")
+        eyesR = 5
+        eyesX1 = cx - r/2
+        eyesX2 = cx + r/2
+        eyesY = cy - 5 
+        canvas.create_oval(cx+r, cy+r, cx-r, cy-r, fill="light green")
+        canvas.create_oval(eyesX1 + eyesR, eyesY + eyesR,
+                            eyesX1 - eyesR, eyesY - eyesR, fill = "black")
+        canvas.create_oval(eyesX2 + eyesR, eyesY + eyesR,
+                            eyesX2 - eyesR, eyesY - eyesR, fill = "black")
         canvas.create_text(cx, cy - 2*r, text="Player")
     
 def gameMode_drawProjectiles(app, canvas):
@@ -425,13 +592,17 @@ def gameMode_drawProjectiles(app, canvas):
         for projectile in app.projectiles:
             cx = projectile.x
             cy = projectile.y
-            canvas.create_oval(cx+r, cy+r, cx-r, cy-r, fill="red")
+            if projectile.source == "player":
+                projColor = "light green"
+            elif projectile.source == "monster":
+                projColor = "red"
+            canvas.create_oval(cx+r, cy+r, cx-r, cy-r, fill=projColor)
 
 def gameMode_drawLevel(app, canvas):
     canvas.create_rectangle(-app.width, -app.height, app.width * 10, app.height * 10, fill="grey")
     if app.showMap:
         drawRooms(app, canvas)
-        drawConnections(app, canvas)
+        #drawConnections(app, canvas)
         highlightStartAndEnd(app, canvas)
         
     if app.showCurrentRoom:
@@ -456,6 +627,9 @@ def gameMode_drawHealth(app, canvas):
         canvas.create_rectangle(app.playerX - 39, app.playerY - 39, 
                                 app.playerX - 41 + healthBarLength * (app.playerCurrentHealth / app.playerHealth), 
                                 app.playerY - 41 + healthBarThickness, fill="light green")
+        canvas.create_text(app.playerX - 40 + healthBarLength/2, 
+                            app.playerY - 40 + healthBarThickness/2, 
+                            text = f"{app.playerCurrentHealth}/{app.playerHealth}", font="arial 6")
 
         for monster in app.monsters:
             x = monster.x
@@ -469,6 +643,7 @@ def gameMode_drawHealth(app, canvas):
 
 #draw room choosing UI when stepping on portal
 def gameMode_drawChoice(app, canvas):
+
     if app.isChoosing and app.showChoice:
         x0 = app.width/2 - 400
         y0 = (app.height / 2) - 30
@@ -477,25 +652,30 @@ def gameMode_drawChoice(app, canvas):
         canvas.create_rectangle(x0, y0, x1, y0, fill="orange" )
         for i in range(len(app.currentChoices)):
             currentchoice = app.currentChoices[i]
+            choiceColor = "yellow"
+            choiceText = f"Room {currentchoice}"
+            if currentchoice in app.playerVisited:
+                choiceColor = "light green"
+                choiceText = f"Room {currentchoice} (visited)"
             boxWidth = (x1 - x0) / len(app.currentChoices)
             choiceX0 = x0 + (i * boxWidth)
             choiceY0 = y0
             choiceX1 = x0 + ((i + 1)* boxWidth)
             choiceY1 = y1
-            canvas.create_rectangle(choiceX0, choiceY0, choiceX1, choiceY1, fill = "yellow")
+            canvas.create_rectangle(choiceX0, choiceY0, choiceX1, choiceY1, fill = choiceColor)
             textX = (choiceX0 + choiceX1) / 2
             textY = (choiceY0 + choiceY1) / 2
-            canvas.create_text(textX, textY, text = f"Room {currentchoice}")
+            canvas.create_text(textX, textY, text = choiceText)
 
 def gameMode_drawGameOver(app, canvas):
     x0 = app.width / 2 - 50
     x1 = app.width / 2 + 50
     y0 = 500
     y1 = 600
-    canvas.create_text(app.width / 2, 100, text = "Game Over", font = "arial 30 bold")
-    canvas.create_text(app.width / 2, 300, text = "You Died", font = "arial 30 bold")
+    canvas.create_text(app.width / 2, 100, text = "Game Over!", font = "arial 50 bold")
+    canvas.create_text(app.width / 2, 300, text = "You Died!", font = "arial 50 bold")
     canvas.create_rectangle(x0, y0, x1, y1)
-    canvas.create_text(app.width / 2, 550, text = "Main Menu", font = "arial 15 bold")
+    canvas.create_text(app.width / 2, 550, text = "Main Menu", font = "arial 13 bold")
 
 def gameMode_drawPlayerWin(app, canvas):
     x0 = app.width / 2 - 50
@@ -505,7 +685,27 @@ def gameMode_drawPlayerWin(app, canvas):
     canvas.create_text(app.width / 2, 100, text = "You Win!", font = "arial 30 bold")
     canvas.create_text(app.width / 2, 300, text = "You made it to the exit", font = "arial 30 bold")
     canvas.create_rectangle(x0, y0, x1, y1)
-    canvas.create_text(app.width / 2, 550, text = "Main Menu", font = "arial 15 bold")
+    canvas.create_text(app.width / 2, 550, text = "Main Menu", font = "arial 13 bold")
+
+#draws what the player sees when they hit escape to pause
+def gameMode_drawEscape(app, canvas):
+    x0 = app.width / 2 - 50
+    x1 = app.width / 2 + 50
+    y0 = 300
+    y1 = 350
+    y2 = 400
+    y3 = 450
+    canvas.create_rectangle(x0, y0, x1, y1)
+    canvas.create_text(app.width / 2, 325, text = "Continue", font = "arial 13 bold")
+    canvas.create_rectangle(x0, y2, x1, y3)
+    canvas.create_text(app.width / 2, 425, text = "Main Menu", font = "arial 13 bold")
+
+def gameMode_drawMiscText(app, canvas):
+    difficulty = ["Easy", "Medium", "Hard"]
+    canvas.create_text(app.width - 100, 40, 
+    text = f"Difficulty: {difficulty[app.difficulty]}" , font = "arial 13 bold")
+    canvas.create_text(app.width - 100, 80, 
+    text = f"Score: {app.score}", font = "arial 13 bold" )
 
 def gameMode_redrawAll(app, canvas):
     if not app.gameOver:
@@ -515,8 +715,12 @@ def gameMode_redrawAll(app, canvas):
         gameMode_drawMonsters(app, canvas)
         gameMode_drawHealth(app, canvas)
         gameMode_drawChoice(app, canvas)
+        gameMode_drawMiscText(app, canvas)
     if app.paused:
         canvas.create_text(app.width/2, 100, text = "paused", font = "arial 20 bold")
+
+    if app.paused and app.pressedEsc:
+        gameMode_drawEscape(app, canvas)
     if app.gameOver and app.playerLost:
         gameMode_drawGameOver(app, canvas)
     elif (app.gameOver == True) and (app.playerLost == False):

@@ -358,6 +358,7 @@ def createCurrentRoom(app):
 #switches "current" room
 def switchRoom(app, room):
     app.currentRoom = room
+    app.playerVisited.add(room)
     app.paused = False
     app.isChoosing = False
     app.showMap = False
@@ -416,7 +417,7 @@ def drawPortal(app, canvas):
     (cx, cy) = app.currentPortal
     cx += app.scrollX
     cy += app.scrollY
-    canvas.create_oval(cx-r, cy-r, cx+r, cy+r, fill = "blue")
+    canvas.create_oval(cx-r, cy-(1.5 * r), cx+r, cy+(1.5 * r), fill = "light blue", outline = "blue", width = 3)
 
 #draws currentroom, which is about 15 times the size than that in the map
 def drawCurrentRoom(app, canvas):
@@ -438,7 +439,7 @@ def redrawAll(app, canvas):
     canvas.create_rectangle(-app.width, -app.height, app.width * 10, app.height * 10, fill="grey")
     if app.showMap:
         drawRooms(app, canvas)
-        drawConnections(app, canvas)
+        #drawConnections(app, canvas)
         highlightStartAndEnd(app, canvas)
         
     if app.showCurrentRoom:
