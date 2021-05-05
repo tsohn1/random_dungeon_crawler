@@ -310,7 +310,7 @@ class Monster(object):
         if damageTaken > 0:
             self.currentHealth -= damageTaken
         else:
-            pass
+            self.currentHealth -= 1
     
     def attackPlayer(self, app, dx, dy):
         #calculations done with absolute position
@@ -318,6 +318,23 @@ class Monster(object):
         self.noScrollY += self.moveSpeed * dy
         if (time.time() - self.fireCooldown) > self.attackPeriod:
             shootProjectile(app, self.x, self.y, "monster")
+            self.fireCooldown = time.time()
+
+class EliteMonster(Monster):
+
+    def __init__(self, app, x, y, health, defense, moveSpeed, attack, dexterity):
+        super().__init__(app, x, y, health, defense, moveSpeed, attack, dexterity)
+        self.health *= 1.5
+        self.currentHealth *= 1.5
+        self.defense *= 1.5
+        self.moveSpeed *= 0.5
+
+    def attackPlayer(self, app, dx, dy):
+        #calculations done with absolute position
+        self.noScrollX += self.moveSpeed * dx
+        self.noScrollY += self.moveSpeed * dy
+        if (time.time() - self.fireCooldown) > self.attackPeriod:
+            shootProjectile(app, self.x, self.y, "EliteMonster")
             self.fireCooldown = time.time()
 
 class Projectile(object):
@@ -356,7 +373,9 @@ class Projectile(object):
 def spawnMonsters(app):
     app.monsters = []
     monsterNumber = random.randint(4, 7)
+    
     for i in range(monsterNumber):
+        eliteMonsterChance = random.randint(0, 15)
         xPos = random.randint(app.x0, app.x1)
         yPos = random.randint(app.y0, app.y1)
         monsterHealth = 100 + (50 * (app.difficulty + app.depth / 10))
@@ -364,7 +383,10 @@ def spawnMonsters(app):
         monsterMovespeed = 5 + (app.difficulty + app.depth / 10)
         monsterAttack = app.monsterDefaultAttack
         monsterDexterity = 6 + ((app.difficulty + app.depth / 10) * 5)
-        app.monsters.append(Monster(app, xPos, yPos, monsterHealth, monsterDefense, monsterMovespeed, monsterAttack, monsterDexterity))
+        if eliteMonsterChance == 15:
+            app.monsters.append(EliteMonster(app, xPos, yPos, monsterHealth, monsterDefense, monsterMovespeed, monsterAttack, monsterDexterity))
+        else:
+            app.monsters.append(Monster(app, xPos, yPos, monsterHealth, monsterDefense, monsterMovespeed, monsterAttack, monsterDexterity))
 
 #creates projectile for enemy or player
 def shootProjectile(app, x, y, source):
@@ -373,13 +395,49 @@ def shootProjectile(app, x, y, source):
         sourceY = app.playerY
         currentProjectile = Projectile(app, "player", sourceX, sourceY, x, y, 
                                                     app.playerProjectileSpeed)
+        app.projectiles.append(currentProjectile)
+
     elif (source == "monster"):
         sourceX = x
         sourceY = y
         currentProjectile = Projectile(app, "monster", sourceX, sourceY, 
                                             app.playerX, app.playerY,  
                                                     app.monsterProjectileSpeed)
-    app.projectiles.append(currentProjectile)
+        app.projectiles.append(currentProjectile)
+
+    elif (source == "EliteMonster"):
+        sourceX = x
+        sourceY = y
+        projNum = 5
+        for i in range(projNum):
+            (targetX, targetY) = findProjAngles(sourceX, sourceY, app.playerX, app.playerY, i)
+            currentProjectile = Projectile(app, "monster", sourceX, sourceY, 
+                                            targetX, targetY,  
+                                                    app.monsterProjectileSpeed * 2)
+            app.projectiles.append(currentProjectile)
+
+#returns a tuple of coordinates which are the targets of the EliteMonster projectiles
+def findProjAngles(x0, y0, x1, y1, i):
+    r = distance(x0, y0, x1, y1)
+    #quadrant 1
+    if (x0 < x1 and y0 < y1):
+        theta = math.acos(abs(x1-x0)/r)
+    #quadrant 2
+    elif (x0 > x1 and y0 < y1):
+        theta = math.pi - math.acos(abs(x1-x0)/r)
+    #quadrant 3
+    elif (x0 > x1 and y0 > y1):
+        theta = math.acos(abs(x1-x0)/r) + math.pi
+    #quadrant 4
+    else:
+        theta = 2*math.pi - math.acos(abs(x1-x0)/r)
+
+
+    angle = theta - (math.pi/8) + i*(math.pi/16)
+    targetX = r*math.cos(angle) + x0
+    targetY = r*math.sin(angle) + y0
+    return targetX, targetY
+
 
 #checks if projectile hit a player, monster, or wall
 def checkProjCollision(app):
@@ -427,13 +485,24 @@ def playerTakeDamage(app, damage):
     else:
         pass
 
+#called if player kills a monster
+def healPlayer(app, n):
+    if (app.playerCurrentHealth + n) < app.playerHealth:
+        app.playerCurrentHealth += n
+    else:
+        app.playerCurrentHealth = app.playerHealth
 #checks if player or any monsters are dead
 def checkDeaths(app):
     if not app.gameOver:
         for monster in app.monsters:
             if (monster.currentHealth <= 0):
                 app.monsters.remove(monster)
-                app.score += int(2 * (app.scoreMultiplier))
+                if type(monster) == Monster:
+                    app.score += int(2 * (app.scoreMultiplier))
+                    healPlayer(app, 2)
+                elif type(monster) == EliteMonster:
+                    app.score += int(5 * (app.scoreMultiplier))
+                    healPlayer(app, 5)
         if app.playerCurrentHealth <= 0:
             app.gameOver = True
             app.playerLost = True
@@ -523,7 +592,7 @@ def gameMode_keyPressed(app, event):
         if (event.key == "p"):
             x = random.randint(100, 600)
             y = random.randint(100, 600)
-
+            app.monsters.append(EliteMonster(app, x, y, 100, 0, 3, 10, 3))
             app.monsters.append(Monster(app, x, y, 100, 0, 3, 10, 3))
 
         #teleport to a room before the exit, for testing
@@ -673,17 +742,17 @@ def gameMode_timerFired(app):
                 
 
 
-
-
-
-
-
-
         #move monsters when close to player
         for monster in app.monsters:
             #do calculations in absolute coordinates
             r = distance(monster.noScrollX, monster.noScrollY, app.playerNoScrollX, app.playerNoScrollY)
-            if r < 600 and r != 0:
+
+            if type(monster) == Monster and r < 600 and r != 0:
+                dx = (app.playerNoScrollX - monster.noScrollX) / r
+                dy = (app.playerNoScrollY - monster.noScrollY) / r
+                monster.attackPlayer(app, dx, dy)
+
+            elif type(monster) == EliteMonster and r < 1200 and r != 0:
                 dx = (app.playerNoScrollX - monster.noScrollX) / r
                 dy = (app.playerNoScrollY - monster.noScrollY) / r
                 monster.attackPlayer(app, dx, dy)
@@ -757,7 +826,10 @@ def gameMode_drawMonsters(app, canvas):
         for monster in app.monsters:
             cx = monster.x
             cy = monster.y
-            canvas.create_oval(cx-r, cy-r, cx+r, cy+r, fill="red")
+            monsterColor = "red"
+            if (type(monster) == EliteMonster):
+                monsterColor = "purple"
+            canvas.create_oval(cx-r, cy-r, cx+r, cy+r, fill=monsterColor)
             #teeth
             canvas.create_polygon(cx-8, cy+12, cx+8, cy+12, cx, cy+20, fill="black")
             canvas.create_polygon(cx-16, cy+12, cx, cy+12, cx-8, cy+20, fill="black")
@@ -839,6 +911,7 @@ def gameMode_drawPlayerWin(app, canvas):
     x3 = app.width / 2 + 150
     canvas.create_text(app.width / 2, 100, text = "You Win!", font = "arial 30 bold")
     canvas.create_text(app.width / 2, 300, text = "You made it to the exit", font = "arial 30 bold")
+    canvas.create_text(app.width / 2, 400, text = "Press Continue to face harder enemies and earn more points!", font = "arial 13 bold")
     canvas.create_rectangle(x0, y0, x1, y1)
     canvas.create_text(app.width / 2 - 100 , 525, text = "Main Menu", font = "arial 13 bold")
     canvas.create_rectangle(x2, y0, x3, y1)
