@@ -19,10 +19,37 @@ def almostEqual(d1, d2, epsilon= 1):
 def distance(x0, y0, x1, y1):
     return math.sqrt((y1-y0)**2 + (x1-x0)**2)
 
+#readFile and writeFile from 
+# https://www.cs.cmu.edu/~112/notes/notes-strings.html#basicFileIO
+def readFile(path):
+    with open(path, "rt") as f:
+        return f.read()
+
+def writeFile(path, contents):
+    with open(path, "wt") as f:
+        f.write(contents)
+
+#reads the highscores files and returns a sorted list of the highscores
+def readAndSortHighscores():
+    text = readFile("highscores.txt")
+    result = []
+    currentPlayer = "Player"
+    currentScore = 0
+    for line in text.splitlines():
+        if line.strip() != "":
+            for word in line.split(" "):
+                if word.isalpha():
+                    currentPlayer = word
+                else:
+                    currentScore = int(word)
+            result.append((currentScore, currentPlayer))
+    return sorted(result)
+
 ################################################################################
 # Actual Functions
 ################################################################################
-
+# using modes from 
+#https://www.cs.cmu.edu/~112/notes/notes-animations-part4.html#usingModes
 ################################################################################
 # Menu Mode
 ################################################################################
@@ -31,16 +58,30 @@ def menuMode_mousePressed(app, event):
     xBounds = (app.width / 2 - 50) < event.x < (app.width / 2 + 50)
     gameStartYBounds = (app.height / 2 - 20) < event.y < (app.height / 2 + 20)
     optionsYBounds = (app.height / 2 + 40) < event.y < (app.height / 2 + 80)
+    highscoreYBounds = (app.height / 2 + 100) < event.y < (app.height / 2 + 140)
+    nameChangeXBounds = (0 < event.x < 300)
+    nameChangeYBounds = (0 < event.y < 100)
 
     #Play
     if (xBounds and gameStartYBounds):
-        app.mode = 'gameMode'
+        app.mode = "gameMode"
         startGame(app)
 
     #Options
     if (xBounds and optionsYBounds):
-        app.mode = 'optionsMode'
+        app.mode = "optionsMode"
 
+    #Highscores
+    if (xBounds and highscoreYBounds):
+        app.mode = "highscoreMode"
+
+    #Change Name
+    if (nameChangeXBounds and nameChangeYBounds):
+        currentInput = app.getUserInput("Please Enter Your Name")
+        if (currentInput == None or currentInput.strip() == ""):
+            app.message = "Please Enter A Valid Name"
+        else:
+            app.playerName = currentInput
     
 
 def menuMode_redrawAll(app, canvas):
@@ -49,11 +90,21 @@ def menuMode_redrawAll(app, canvas):
     #Play
     canvas.create_rectangle(app.width / 2 - 50, app.height / 2 - 20, 
                             app.width / 2 + 50, app.height / 2 + 20)
-    canvas.create_text(app.width / 2, app.height / 2, text="Play")
+    canvas.create_text(app.width / 2, app.height / 2, text="Play", font = "arial 9 bold")
     #Options
     canvas.create_rectangle(app.width / 2 - 50, app.height / 2 + 40, 
                             app.width / 2 + 50, app.height / 2 + 80 )
-    canvas.create_text(app.width / 2, app.height / 2 + 60, text="Options")
+    canvas.create_text(app.width / 2, app.height / 2 + 60, text="Options", font = "arial 9 bold")
+    #Highscores
+    canvas.create_rectangle(app.width / 2 - 50, app.height / 2 + 100, 
+                            app.width / 2 + 50, app.height / 2 + 140 )
+    canvas.create_text(app.width / 2, app.height / 2 + 120, text="Highscores", font = "arial 9 bold")
+    #Player name
+    canvas.create_rectangle(0, 0, 300, 100)
+    canvas.create_text(150, 30, text = f"Current Player: {app.playerName}", 
+                        font = "arial 11 bold")
+    canvas.create_text(150, 60, text = "click to change name", 
+                        font = "arial 10 bold")
 
 ################################################################################
 # Options Mode
@@ -115,18 +166,65 @@ def optionsMode_redrawAll(app, canvas):
                         font = "Arial 15 bold")
 
 
+################################################################################
+# Highscore Mode
+################################################################################
+def highscoreMode_mousePressed(app, event):
+    backXBounds = 0 < event.x < 80
+    backYBounds = 0 < event.y < 40
+    resetXBounds = app.width - 80 < event.x < app.width
+    resetYBounds = app.height - 40 < event.y < app.height
+
+    if (backXBounds and backYBounds):
+        app.mode = "menuMode"
+
+    if (resetXBounds and resetYBounds):
+        writeFile("highscores.txt", "")
+        app.highscores = readAndSortHighscores()
+
+
+
+
+def highscoreMode_drawHighscores(app, canvas):
+    if (app.highscores == []):
+        canvas.create_text(app.width / 2, 200, text = "No scores submitted yet")
+    for i in range(len(app.highscores)-1, -1, -1):
+        rank = len(app.highscores) - i
+        currentName = app.highscores[i][1]
+        currentScore = app.highscores[i][0]
+        canvas.create_text(app.width / 2, (100 + rank*15), text = f"{rank}. {currentName}  {currentScore}")
+        
+
+
+def highscoreMode_redrawAll(app, canvas):
+
+    canvas.create_text(app.width / 2, 50, text = "Highscores",
+                                font = "Arial 30 bold")
+    #back button
+    canvas.create_rectangle(0, 0, 80, 40)
+    canvas.create_text(40, 20, text="Back")
+
+    #highscores
+    highscoreMode_drawHighscores(app, canvas)
+    
+    #reset button
+    canvas.create_rectangle(app.width - 80, app.height - 40, app.width, app.height)
+    canvas.create_text(app.width - 40, app.height - 20, text="Reset Scores")
+    
+
+
 
 
 ################################################################################
 # Main App
 ################################################################################
-# using modes from 
-#https://www.cs.cmu.edu/~112/notes/notes-animations-part4.html#usingModes
+
 
 
 def appStarted(app):
     app.mode = "menuMode"
     app.playerName = "guest"
+    app.highscores = readAndSortHighscores()
     app.difficulty = 0
     app.score = 0
     app.depth = 0
@@ -444,7 +542,7 @@ def gameMode_keyPressed(app, event):
             app.showMap = False
 
 def gameMode_keyReleased(app, event):
-    if not app.paused or app.gameOver:
+    if not (app.paused or app.gameOver):
         if (event.key == "w"):
             app.playerdRow = 0
         if (event.key == "a"):
@@ -456,7 +554,7 @@ def gameMode_keyReleased(app, event):
     
 
 def gameMode_mousePressed(app, event):
-    if not app.paused or app.gameOver:
+    if not (app.paused or app.gameOver):
         app.playerTargetX = event.x
         app.playerTargetY= event.y
         app.playerFiring = True
@@ -483,16 +581,35 @@ def gameMode_mousePressed(app, event):
         if (menuX and menuY):
             appStarted(app)
 
+    #player died
     if (app.gameOver == True and app.playerLost == True):
         if (((app.width / 2 - 50) < event.x < (app.width / 2 + 50)) and 
             (500 < event.y < 600)):
+            currentScores = readFile("highscores.txt")
+            currentScores += f"\n{app.playerName} {int(app.score)}"
+            writeFile("highscores.txt", currentScores)
+            app.highscores = readAndSortHighscores()
             appStarted(app)
-        
-    if (app.gameOver == True and app.playerLost == False and
-    (app.width / 2 + 50 < event.x < app.width / 2 + 150) and
-    (500 < event.y < 550)):
-        app.depth += 1
-        startGame(app)
+
+    #player made it to the end    
+    if (app.gameOver == True and app.playerLost == False): 
+        continueXBounds = app.width / 2 + 50 < event.x < app.width / 2 + 150
+        yBounds = 500 < event.y < 550
+        menuXBounds = (app.width / 2 - 150) < event.x < (app.width / 2 - 50)
+
+        #player pressed continue
+        if continueXBounds and yBounds:
+            app.depth += 1
+            startGame(app)
+
+        #player pressed main menu
+        if menuXBounds and yBounds:
+            currentScores = readFile("highscores.txt")
+            currentScores += f"\n{app.playerName} {int(app.score)}"
+            writeFile("highscores.txt", currentScores)
+            app.highscores = readAndSortHighscores()
+            appStarted(app)
+            
 
 
 
