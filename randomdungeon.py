@@ -363,6 +363,7 @@ def switchRoom(app, room):
     app.isChoosing = False
     app.showMap = False
     app.showCurrentRoom = True
+    app.score += int(10 * (app.scoreMultiplier))
     createCurrentRoom(app)
     
 def keyPressed(app, event):

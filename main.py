@@ -126,17 +126,20 @@ def optionsMode_redrawAll(app, canvas):
 
 def appStarted(app):
     app.mode = "menuMode"
+    app.playerName = "guest"
     app.difficulty = 0
+    app.score = 0
+    app.depth = 0
     startGame(app)
 
 
 def startGame(app):
+    app.scoreMultiplier = ((app.difficulty + 1) + app.depth / 10)
     createLevel(app)
     app.time = time.time()
     app.skillTime = time.time()
     app.hitWindow = 30 #player and enemy hitbox
     app.timerDelay = 20
-    app.score = 0
     app.paused = False
     app.isChoosing = False
     app.pressedEsc = False
@@ -163,8 +166,9 @@ def loadPlayerStats(app):
     app.playerMoveSpeed = 10
     app.playerProjectileSpeed = 15
     app.playerDexterity = 35 # related to fire rate
-    app.playerHealth = 100 - (app.difficulty * 15)
-    app.playerCurrentHealth = 100 - (app.difficulty * 15)
+    if app.depth == 0:
+        app.playerHealth = 100 - (app.difficulty * 15)
+        app.playerCurrentHealth = 100 - (app.difficulty * 15)
     app.playerDefense = 5
     app.playerAttack = 20
     app.playerFireRate = 0
@@ -176,8 +180,8 @@ def loadPlayerStats(app):
 
 def loadMonsterStats(app):
     app.monsters = []
-    app.monsterProjectileSpeed = 10 + (2 * app.difficulty)
-    app.monsterDefaultAttack = 8 + app.difficulty
+    app.monsterProjectileSpeed = 10 + (2 * (app.difficulty + app.depth / 10))
+    app.monsterDefaultAttack = 8 + (app.difficulty + app.depth / 10)
 
 
 class Monster(object):
@@ -257,11 +261,11 @@ def spawnMonsters(app):
     for i in range(monsterNumber):
         xPos = random.randint(app.x0, app.x1)
         yPos = random.randint(app.y0, app.y1)
-        monsterHealth = 100 + (50 * app.difficulty)
-        monsterDefense = 2 * app.difficulty
-        monsterMovespeed = 5 + app.difficulty
+        monsterHealth = 100 + (50 * (app.difficulty + app.depth / 10))
+        monsterDefense = 2 * (app.difficulty + app.depth / 10)
+        monsterMovespeed = 5 + (app.difficulty + app.depth / 10)
         monsterAttack = app.monsterDefaultAttack
-        monsterDexterity = 6 + (app.difficulty * 5)
+        monsterDexterity = 6 + ((app.difficulty + app.depth / 10) * 5)
         app.monsters.append(Monster(app, xPos, yPos, monsterHealth, monsterDefense, monsterMovespeed, monsterAttack, monsterDexterity))
 
 #creates projectile for enemy or player
@@ -331,6 +335,7 @@ def checkDeaths(app):
         for monster in app.monsters:
             if (monster.currentHealth <= 0):
                 app.monsters.remove(monster)
+                app.score += int(2 * (app.scoreMultiplier))
         if app.playerCurrentHealth <= 0:
             app.gameOver = True
             app.playerLost = True
@@ -391,7 +396,6 @@ def getChoice(app, x, y):
 # Game Mode
 ################################################################################
 def gameMode_keyPressed(app, event):
-    print(event.key)
     if (event.key == "m"): #map
         if not app.isChoosing and not app.pressedEsc:
             app.paused = not app.paused
@@ -440,7 +444,6 @@ def gameMode_keyPressed(app, event):
             app.showMap = False
 
 def gameMode_keyReleased(app, event):
-    print(event.key)
     if not app.paused or app.gameOver:
         if (event.key == "w"):
             app.playerdRow = 0
@@ -480,10 +483,21 @@ def gameMode_mousePressed(app, event):
         if (menuX and menuY):
             appStarted(app)
 
-    if app.gameOver:
+    if (app.gameOver == True and app.playerLost == True):
         if (((app.width / 2 - 50) < event.x < (app.width / 2 + 50)) and 
             (500 < event.y < 600)):
             appStarted(app)
+        
+    if (app.gameOver == True and app.playerLost == False and
+    (app.width / 2 + 50 < event.x < app.width / 2 + 150) and
+    (500 < event.y < 550)):
+        app.depth += 1
+        startGame(app)
+
+
+
+
+        
 
 #shooting also works with dragging    
 def gameMode_mouseDragged(app, event):
@@ -499,7 +513,7 @@ def gameMode_mouseReleased(app, event):
 
 #moves player and projectiles
 def gameMode_timerFired(app):
-    if not app.paused or app.gameOver:
+    if not app.paused and not app.gameOver:
         #scrolls everything relative to player
         app.scrollX -= app.playerdCol * app.playerMoveSpeed
         app.scrollY -= app.playerdRow * app.playerMoveSpeed
@@ -649,7 +663,7 @@ def gameMode_drawHealth(app, canvas):
                                 app.playerY - 41 + healthBarThickness, fill="light green")
         canvas.create_text(app.playerX - 40 + healthBarLength/2, 
                             app.playerY - 40 + healthBarThickness/2, 
-                            text = f"{app.playerCurrentHealth}/{app.playerHealth}", font="arial 6")
+                            text = f"{int(app.playerCurrentHealth)}/{app.playerHealth}", font="arial 6")
 
         for monster in app.monsters:
             x = monster.x
@@ -700,14 +714,18 @@ def gameMode_drawGameOver(app, canvas):
     canvas.create_text(app.width / 2, 550, text = "Main Menu", font = "arial 13 bold")
 
 def gameMode_drawPlayerWin(app, canvas):
-    x0 = app.width / 2 - 50
-    x1 = app.width / 2 + 50
+    x0 = app.width / 2 - 150
+    x1 = app.width / 2 - 50
     y0 = 500
-    y1 = 600
+    y1 = 550
+    x2 = app.width / 2 + 50
+    x3 = app.width / 2 + 150
     canvas.create_text(app.width / 2, 100, text = "You Win!", font = "arial 30 bold")
     canvas.create_text(app.width / 2, 300, text = "You made it to the exit", font = "arial 30 bold")
     canvas.create_rectangle(x0, y0, x1, y1)
-    canvas.create_text(app.width / 2, 550, text = "Main Menu", font = "arial 13 bold")
+    canvas.create_text(app.width / 2 - 100 , 525, text = "Main Menu", font = "arial 13 bold")
+    canvas.create_rectangle(x2, y0, x3, y1)
+    canvas.create_text(app.width / 2 + 100 , 525, text = "Continue", font = "arial 13 bold")
 
 #draws what the player sees when they hit escape to pause
 def gameMode_drawEscape(app, canvas):
@@ -725,10 +743,15 @@ def gameMode_drawEscape(app, canvas):
 #draws score, difficulty, skill message, etc.
 def gameMode_drawMiscText(app, canvas):
     difficulty = ["Easy", "Medium", "Hard"]
+
     canvas.create_text(app.width - 100, 40, 
     text = f"Difficulty: {difficulty[app.difficulty]}" , font = "arial 13 bold")
+
     canvas.create_text(app.width - 100, 80, 
     text = f"Score: {app.score}", font = "arial 13 bold" )
+
+    canvas.create_text(app.width - 100, 120, 
+    text = f"Depth: {app.depth}", font = "arial 13 bold"  )
 
     if app.playerCanUseSkill:
         skillText = "press Space to use skill!"
