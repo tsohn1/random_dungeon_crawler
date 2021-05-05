@@ -146,6 +146,7 @@ def startGame(app):
     app.playerLost = False
     app.playerCanUseSkill = True
     app.playerUsingSkill = False
+    app.skillDisplayCooldown = 0
     loadPlayerStats(app)
     loadMonsterStats(app)
     app.projectiles = []
@@ -326,12 +327,13 @@ def playerTakeDamage(app, damage):
 
 #checks if player or any monsters are dead
 def checkDeaths(app):
-    for monster in app.monsters:
-        if (monster.currentHealth <= 0):
-            app.monsters.remove(monster)
-    if app.playerCurrentHealth <= 0:
-        app.gameOver = True
-        app.playerLost = True
+    if not app.gameOver:
+        for monster in app.monsters:
+            if (monster.currentHealth <= 0):
+                app.monsters.remove(monster)
+        if app.playerCurrentHealth <= 0:
+            app.gameOver = True
+            app.playerLost = True
 
 #checks if player is in last room
 def checkWin(app):
@@ -389,8 +391,9 @@ def getChoice(app, x, y):
 # Game Mode
 ################################################################################
 def gameMode_keyPressed(app, event):
+    print(event.key)
     if (event.key == "m"): #map
-        if app.isChoosing == False:
+        if not app.isChoosing and not app.pressedEsc:
             app.paused = not app.paused
         app.showMap = not app.showMap
         app.showCurrentRoom = not app.showCurrentRoom
@@ -412,6 +415,7 @@ def gameMode_keyPressed(app, event):
             app.playerUsingSkill = True
             app.playerCanUseSkill = False
             app.skillDuration = time.time()
+            app.skillTime = time.time()
         
         #spawn a monster, for testing
         if (event.key == "p"):
@@ -429,11 +433,14 @@ def gameMode_keyPressed(app, event):
             spawnMonsters(app)
             app.playerdRow = 0
             app.playerdCol = 0
-        if (event.key == "Escape"):
+
+        if (event.key == "Escape") and app.paused == False:
             app.paused = True
             app.pressedEsc = True
+            app.showMap = False
 
 def gameMode_keyReleased(app, event):
+    print(event.key)
     if not app.paused or app.gameOver:
         if (event.key == "w"):
             app.playerdRow = 0
@@ -509,8 +516,9 @@ def gameMode_timerFired(app):
             app.time = time.time()
 
         skillCooldown = time.time() - app.skillTime
+        app.skillDisplayCooldown = 15 - skillCooldown
         #checks for player skill
-        if (skillCooldown > 10):
+        if (skillCooldown > 15):
             app.playerCanUseSkill = True
         
         
@@ -530,6 +538,7 @@ def gameMode_timerFired(app):
                 app.playerDefense = 5
                 app.playerAttack = 20
                 app.playerUsingSkill = False
+                app.playerCanUseSkill = False
                 
 
 
@@ -585,6 +594,8 @@ def gameMode_drawPlayer(app, canvas):
         canvas.create_oval(eyesX2 + eyesR, eyesY + eyesR,
                             eyesX2 - eyesR, eyesY - eyesR, fill = "black")
         canvas.create_text(cx, cy - 2*r, text="Player")
+        if app.playerUsingSkill:
+            canvas.create_text(cx, cy + 1.5*r, text="POWER UP!")
     
 def gameMode_drawProjectiles(app, canvas):
     if not app.paused:
@@ -602,12 +613,12 @@ def gameMode_drawLevel(app, canvas):
     canvas.create_rectangle(-app.width, -app.height, app.width * 10, app.height * 10, fill="grey")
     if app.showMap:
         drawRooms(app, canvas)
-        #drawConnections(app, canvas)
+        drawConnections(app, canvas)
         highlightStartAndEnd(app, canvas)
-        
-    if app.showCurrentRoom:
-        drawCurrentRoom(app, canvas)
-        drawPortal(app, canvas)
+    if not app.paused:   
+        if app.showCurrentRoom:
+            drawCurrentRoom(app, canvas)
+            drawPortal(app, canvas)
 
 def gameMode_drawMonsters(app, canvas):
     if not app.paused:
@@ -616,6 +627,15 @@ def gameMode_drawMonsters(app, canvas):
             cx = monster.x
             cy = monster.y
             canvas.create_oval(cx-r, cy-r, cx+r, cy+r, fill="red")
+            #teeth
+            canvas.create_polygon(cx-8, cy+12, cx+8, cy+12, cx, cy+20, fill="black")
+            canvas.create_polygon(cx-16, cy+12, cx, cy+12, cx-8, cy+20, fill="black")
+            canvas.create_polygon(cx, cy+12, cx+16, cy+12, cx+8, cy+20, fill="black")
+            #eyes
+            canvas.create_polygon(cx-15, cy-15, cx, cy-15, cx-8, cy-5, fill="black")
+
+            canvas.create_polygon(cx+15, cy-15, cx, cy-15, cx+8, cy-5, fill="black")
+
         
 def gameMode_drawHealth(app, canvas):
     if not app.paused:
@@ -650,6 +670,8 @@ def gameMode_drawChoice(app, canvas):
         x1 = app.width/2 + 400
         y1 = (app.height / 2) + 30
         canvas.create_rectangle(x0, y0, x1, y0, fill="orange" )
+        canvas.create_text(app.width /2 , app.height / 2 - 100, 
+                            text=f"Current Room: Room {app.currentRoom}", font = "arial 13 bold")
         for i in range(len(app.currentChoices)):
             currentchoice = app.currentChoices[i]
             choiceColor = "yellow"
@@ -665,7 +687,7 @@ def gameMode_drawChoice(app, canvas):
             canvas.create_rectangle(choiceX0, choiceY0, choiceX1, choiceY1, fill = choiceColor)
             textX = (choiceX0 + choiceX1) / 2
             textY = (choiceY0 + choiceY1) / 2
-            canvas.create_text(textX, textY, text = choiceText)
+            canvas.create_text(textX, textY, text = choiceText,  font = "arial 13 bold")
 
 def gameMode_drawGameOver(app, canvas):
     x0 = app.width / 2 - 50
@@ -700,12 +722,26 @@ def gameMode_drawEscape(app, canvas):
     canvas.create_rectangle(x0, y2, x1, y3)
     canvas.create_text(app.width / 2, 425, text = "Main Menu", font = "arial 13 bold")
 
+#draws score, difficulty, skill message, etc.
 def gameMode_drawMiscText(app, canvas):
     difficulty = ["Easy", "Medium", "Hard"]
     canvas.create_text(app.width - 100, 40, 
     text = f"Difficulty: {difficulty[app.difficulty]}" , font = "arial 13 bold")
     canvas.create_text(app.width - 100, 80, 
     text = f"Score: {app.score}", font = "arial 13 bold" )
+
+    if app.playerCanUseSkill:
+        skillText = "press Space to use skill!"
+    elif app.playerUsingSkill:
+        skillText = "your movement speed, attack speed, defense, and attack is greatly increased."
+    else:
+        skillText = f"your skill will be avaliable in:{int(app.skillDisplayCooldown)}"
+    
+    canvas.create_text(app.width/2, app.height - 50, 
+                    text = skillText, font = "arial 13 bold")
+
+    
+
 
 def gameMode_redrawAll(app, canvas):
     if not app.gameOver:
